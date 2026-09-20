@@ -1,0 +1,119 @@
+name: Android APK and device verification
+on:
+  push:
+    branches: [main, 'build/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      BLACK_HOLE_API_URL: ${{ vars.BLACK_HOLE_API_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Install SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Backend policy tests
+        run: python3 -m unittest discover -s backend -v
+      - name: Compile and lint
+        run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
+      - name: Generate standard wrapper
+        run: gradle wrapper --gradle-version 8.11.1 --distribution-type bin
+      - name: APK metadata and ABI validation
+        run: |
+          mkdir -p artifacts
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BLACK-HOLE-1.0-test.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging artifacts/BLACK-HOLE-1.0-test.apk > artifacts/apk-metadata.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose artifacts/BLACK-HOLE-1.0-test.apk > artifacts/signature.txt
+          python3 - <<'PY'
+          import os,zipfile,hashlib,json
+          p='artifacts/BLACK-HOLE-1.0-test.apk'
+          with zipfile.ZipFile(p) as z:
+              assert not any(n.startswith('lib/') for n in z.namelist()), 'Unexpected native libraries'
+          metadata=open('artifacts/apk-metadata.txt').read()
+          assert "sdkVersion:'28'" in metadata
+          assert "targetSdkVersion:'36'" in metadata
+          assert "launchable-activity: name='com.blackhole.app.MainActivity'" in metadata
+          assert os.path.getsize(p) < 30*1024*1024
+          json.dump({'bytes':os.path.getsize(p),'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'commit':os.environ['GITHUB_SHA'],'backend_configured':bool(os.getenv('BLACK_HOLE_API_URL'))},open('artifacts/build.json','w'),indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BLACK-HOLE-APK
+          path: artifacts/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-test-inputs
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gradle-wrapper
+          path: |
+            gradlew
+            gradlew.bat
+            gradle/wrapper/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lint-report
+          path: app/build/reports/
+  device-tests:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [28, 29, 36]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-test-inputs
+          path: test-apks
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Create real video fixture
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          mkdir -p fixture evidence
+          ffmpeg -f lavfi -i testsrc=size=320x240:rate=15 -f lavfi -i sine=frequency=440 -t 4 -c:v libx264 -pix_fmt yuv420p -c:a aac -movflags +faststart fixture/fixture.mp4
+          (cd fixture && python3 ../scripts/fixture_server.py) &
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: default
+          disable-animations: true
+          script: |
+            adb install test-apks/debug/app-debug.apk
+            adb install test-apks/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w com.blackhole.app.test/androidx.test.runner.AndroidJUnitRunner | tee evidence/instrumentation.txt
+            python3 -c 's=open("evidence/instrumentation.txt").read(); assert "OK (" in s and "FAILURES" not in s, s'
+            adb pull /sdcard/Android/data/com.blackhole.app/files/evidence evidence/screenshots
+            adb logcat -d -s AndroidRuntime > evidence/runtime.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: device-evidence-api-${{ matrix.api }}
+          path: evidence/
