@@ -66,7 +66,7 @@ class DownloadService : Service() {
                                 val percent = if(length > 0) ((total * 100 / length).toInt()).coerceIn(0,99) else null
                                 val detail = listOf(video.quality, Formatter.formatFileSize(this@DownloadService, total)).filter { it.isNotBlank() }.joinToString(" · ")
                                 Transfer.update(TransferState(Phase.DOWNLOADING, percent, detail))
-                                getSystemService(NotificationManager::class.java).notify(1, notification("Downloading video", percent))
+                                if(Build.VERSION.SDK_INT < 33 || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) getSystemService(NotificationManager::class.java).notify(1, notification("Downloading video", percent))
                             }
                         }
                     } }
