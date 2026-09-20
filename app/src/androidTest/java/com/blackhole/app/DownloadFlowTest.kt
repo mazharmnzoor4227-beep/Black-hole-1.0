@@ -9,11 +9,20 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.*
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.After
 import org.junit.runner.RunWith
 import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class DownloadFlowTest {
+    @After fun saveFailureEvidence() {
+        val i=InstrumentationRegistry.getInstrumentation()
+        val dir=File(i.targetContext.getExternalFilesDir(null), "evidence").apply { mkdirs() }
+        val device=UiDevice.getInstance(i)
+        device.takeScreenshot(File(dir,"last-screen.png"))
+        device.dumpWindowHierarchy(File(dir,"window.xml"))
+        File(dir,"transfer.txt").writeText(Transfer.state.value.toString())
+    }
     @Test fun launcherAndRealDownload() {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         val context=instrumentation.targetContext
@@ -42,8 +51,10 @@ class DownloadFlowTest {
         // HTTP is allowed only for this emulator fixture host in debug builds.
         context.startActivity(Intent(context,MainActivity::class.java).setAction(Intent.ACTION_SEND).setType("text/plain")
             .putExtra(Intent.EXTRA_TEXT,"http://10.0.2.2:8765/fixture.mp4").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        instrumentation.waitForIdleSync()
+        device.waitForIdle()
         device.wait(Until.findObject(By.desc("Black hole. Tap to download copied video link")),5000).click()
-        assertTrue(device.wait(Until.hasObject(By.text("DOWNLOAD COMPLETE")),90000))
+        assertTrue("Download failed: ${Transfer.state.value}", device.wait(Until.hasObject(By.text("DOWNLOAD COMPLETE")),90000))
         assertEquals(Phase.COMPLETE,Transfer.state.value.phase)
         assertEquals(100,Transfer.state.value.percent)
         val uri=android.net.Uri.parse(Transfer.state.value.uri)
