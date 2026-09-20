@@ -30,7 +30,7 @@ class DownloadService : Service() {
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if(intent?.action == "cancel") { job?.cancel(); return START_NOT_STICKY }
-        if(job?.isActive == true) return START_NOT_STICKY
+        if(job != null && job?.isCompleted == false) return START_NOT_STICKY
         val link = Links.extract(intent?.getStringExtra("url")) ?: run { stopSelf(); return START_NOT_STICKY }
         if(Build.VERSION.SDK_INT >= 29) startForeground(1, notification("Analyzing video"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         else startForeground(1, notification("Analyzing video"))
@@ -48,7 +48,9 @@ class DownloadService : Service() {
                     if(type.contains("text") || type.contains("json") || type.contains("mpegurl")) throw UserFailure("LINK DOES NOT CONTAIN A DOWNLOADABLE MP4")
                     val length = c.contentLengthLong
                     if(length > MediaFiles.MAX_BYTES) throw UserFailure("VIDEO EXCEEDS THE 2 GB LIMIT")
-                    if(cacheDir.usableSpace < (if(length > 0) length * 2 else 100L * 1024 * 1024)) throw UserFailure("NOT ENOUGH FREE STORAGE")
+                    val requiredSpace = if (length > 0L) length * 2L else 100L * 1024L * 1024L
+                    if (cacheDir.usableSpace < requiredSpace) throw UserFailure("NOT ENOUGH FREE STORAGE")
+                    Transfer.update(TransferState(Phase.DOWNLOADING, if(length > 0) 0 else null, video.quality))
                     var total = 0L
                     var lastUpdate = 0L
                     c.inputStream.use { input -> file.outputStream().use { output ->
