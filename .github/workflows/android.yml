@@ -31,6 +31,10 @@ jobs:
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
       - name: Backend policy tests
         run: python3 -m unittest discover -s backend -v
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: black-hole-debug-signing-v1
       - name: Compile and lint
         run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
       - name: Generate standard wrapper
@@ -106,14 +110,15 @@ jobs:
           api-level: ${{ matrix.api }}
           arch: x86_64
           target: default
-          disable-animations: true
+          disable-animations: false
           script: |
             adb install test-apks/debug/app-debug.apk
             adb install test-apks/androidTest/debug/app-debug-androidTest.apk
+            adb shell settings put secure immersive_mode_confirmations confirmed
             adb shell am instrument -w com.blackhole.app.test/androidx.test.runner.AndroidJUnitRunner | tee evidence/instrumentation.txt
-            python3 -c 's=open("evidence/instrumentation.txt").read(); assert "OK (" in s and "FAILURES" not in s, s'
-            adb pull /sdcard/Android/data/com.blackhole.app/files/evidence evidence/screenshots
+            adb pull /sdcard/Android/data/com.blackhole.app/files/evidence evidence/screenshots || true
             adb logcat -d -s AndroidRuntime > evidence/runtime.txt
+            python3 -c 's=open("evidence/instrumentation.txt").read(); assert "OK (" in s and "FAILURES" not in s, s'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

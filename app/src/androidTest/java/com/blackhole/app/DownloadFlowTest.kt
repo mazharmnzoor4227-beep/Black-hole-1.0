@@ -28,6 +28,8 @@ class DownloadFlowTest {
         context.startActivity(launcher!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         val hole=device.wait(Until.findObject(By.desc("Black hole. Tap to download copied video link")),10000)
         assertNotNull(hole)
+        instrumentation.waitForIdleSync()
+        device.waitForIdle()
         val directory=File(context.getExternalFilesDir(null),"evidence").apply { mkdirs() }
         val screenshot=File(directory,"home.png")
         device.takeScreenshot(screenshot)

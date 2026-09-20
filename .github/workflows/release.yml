@@ -1,0 +1,54 @@
+name: Signed production release
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      BLACK_HOLE_API_URL: ${{ vars.BLACK_HOLE_API_URL }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require production configuration
+        run: |
+          python3 - <<'PY'
+          import os,base64,pathlib
+          required=('BLACK_HOLE_API_URL','ANDROID_KEYSTORE_BASE64','ANDROID_KEYSTORE_PASSWORD','ANDROID_KEY_ALIAS','ANDROID_KEY_PASSWORD')
+          missing=[key for key in required if not os.getenv(key)]
+          if missing: raise SystemExit('Missing production configuration: '+', '.join(missing))
+          path=pathlib.Path(os.environ['RUNNER_TEMP'])/'release.jks'
+          path.write_bytes(base64.b64decode(os.environ['ANDROID_KEYSTORE_BASE64'],validate=True))
+          path.chmod(0o600)
+          with open(os.environ['GITHUB_ENV'],'a') as f: f.write('ANDROID_KEYSTORE_PATH='+str(path)+'\n')
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - run: gradle --no-daemon :app:assembleRelease :app:lintRelease
+      - name: Verify release signature
+        run: |
+          mkdir -p release
+          cp app/build/outputs/apk/release/app-release.apk release/BLACK-HOLE-1.0.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose release/BLACK-HOLE-1.0.apk > release/signature.txt
+          sha256sum release/BLACK-HOLE-1.0.apk > release/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BLACK-HOLE-signed-release
+          path: release/
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"

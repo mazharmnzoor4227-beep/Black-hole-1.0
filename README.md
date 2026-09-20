@@ -15,13 +15,13 @@ A clean Kotlin Android project created from scratch. No old BLACK HOLE code, acc
 
 ## Build and APK
 
-JDK 17, Gradle 8.11.1, Android SDK 36 / build tools 36.0.0. Run `gradle :app:assembleDebug :app:lintDebug`. CI also produces standard Gradle wrapper files as an artifact.
+JDK 17, Gradle 8.11.1, Android SDK 36 / build tools 36.0.0. Run `./gradlew :app:assembleDebug :app:lintDebug` (or `gradlew.bat` on Windows). Standard Gradle wrapper files are committed.
 
 GitHub Actions uploads `BLACK-HOLE-APK` containing the installable debug-signed testing APK, exact byte size, SHA-256, commit SHA, signature and manifest evidence. Device jobs install that exact APK and launch the real MAIN activity on API 28, 29 and 36. They test a real generated MP4 over HTTP (emulator-only debug exception), save/readback, 100%, history and screen black pixels. Screenshots and instrumentation output are separate artifacts.
 
 Minimum Android: 9 / API 28. Target/compile: Android 16 / API 36. No ABI filters or native `.so` files. Compatibility across every manufacturer or future Android release is not claimed by compilation alone.
 
-A testing APK is not a production-signed release. For long-term distribution configure `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` securely in the build environment and run `gradle :app:assembleRelease`. Preserve the same signing key for updates; changing a debug key can require uninstalling the previous test build.
+A testing APK is not a production-signed release. For long-term distribution configure `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` securely in the build environment and run `gradle :app:assembleRelease`. The dedicated **Signed production release** workflow accepts repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` plus the backend URL variable and refuses an unconfigured production build. Preserve the same signing key for updates; changing a debug key can require uninstalling the previous test build.
 
 ## Social-platform extraction
 

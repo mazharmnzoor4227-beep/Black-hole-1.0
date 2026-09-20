@@ -19,6 +19,7 @@ class HoleView(context: Context) : View(context) {
         }
         b.setPixels(pixels,0,b.width,0,0,b.width,b.height)
     }
+    private val bounds = RectF()
     private var angle = 0f
     private var animator: ValueAnimator? = null
     var running = false
@@ -36,7 +37,8 @@ class HoleView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         canvas.save(); canvas.rotate(angle, width/2f, height/2f)
-        canvas.drawBitmap(bitmap,null,RectF(0f,0f,width.toFloat(),height.toFloat()),paint)
+        bounds.set(0f,0f,width.toFloat(),height.toFloat())
+        canvas.drawBitmap(bitmap,null,bounds,paint)
         canvas.restore()
     }
     override fun onDetachedFromWindow() { animator?.cancel(); animator=null; super.onDetachedFromWindow() }
