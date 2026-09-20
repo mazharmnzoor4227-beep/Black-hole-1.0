@@ -27,10 +27,13 @@ class HoleView(context: Context) : View(context) {
     init { contentDescription = "Black hole. Tap to download copied video link"; isClickable = true; isFocusable = true }
     fun animateHole(active: Boolean) {
         running = active
+        if (!ValueAnimator.areAnimatorsEnabled()) {
+            animator?.cancel(); animator = null; angle = 0f; invalidate(); return
+        }
         if(active && animator == null && isAttachedToWindow) {
             animator = ValueAnimator.ofFloat(angle, angle+360f).apply {
                 duration = 14000; repeatCount = ValueAnimator.INFINITE; interpolator = LinearInterpolator()
-                addUpdateListener { angle = (it.animatedValue as Float) % 360f; invalidate() }; start()
+                addUpdateListener { val value = it.animatedValue as Float; angle = if(value.isFinite()) value % 360f else 0f; invalidate() }; start()
             }
         } else if(!active) { animator?.cancel(); animator=null }
     }

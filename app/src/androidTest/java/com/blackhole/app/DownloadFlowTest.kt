@@ -27,7 +27,6 @@ class DownloadFlowTest {
         val instrumentation=InstrumentationRegistry.getInstrumentation()
         val context=instrumentation.targetContext
         val device=UiDevice.getInstance(instrumentation)
-        if(Build.VERSION.SDK_INT == 28) device.executeShellCommand("pm grant ${context.packageName} android.permission.WRITE_EXTERNAL_STORAGE")
         if(Build.VERSION.SDK_INT >= 33) device.executeShellCommand("pm grant ${context.packageName} android.permission.POST_NOTIFICATIONS")
         assertEquals(28,context.applicationInfo.minSdkVersion)
         assertEquals(36,context.applicationInfo.targetSdkVersion)
@@ -63,7 +62,15 @@ class DownloadFlowTest {
         assertTrue(rows.isNotEmpty())
         assertTrue(rows.first().bytes > 0)
         assertTrue(rows.first().quality.contains("320×240"))
-        device.takeScreenshot(File(directory,"complete.png"))
+        val completedShot=File(directory,"complete.png")
+        device.takeScreenshot(completedShot)
+        val completedBitmap=BitmapFactory.decodeFile(completedShot.absolutePath)
+        var brightPixels=0
+        for(y in completedBitmap.height/3 until completedBitmap.height*2/3) {
+            for(x in 0 until completedBitmap.width) if(Color.red(completedBitmap.getPixel(x,y)) > 100) brightPixels++
+        }
+        assertTrue("Black hole must remain visible after completion", brightPixels > 100)
+        completedBitmap.recycle()
         device.findObject(By.text("HISTORY")).click()
         assertTrue(device.wait(Until.hasObject(By.textContains("320×240")),5000))
         device.takeScreenshot(File(directory,"history.png"))

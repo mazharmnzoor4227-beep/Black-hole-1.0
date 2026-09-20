@@ -114,6 +114,7 @@ jobs:
           script: |
             adb install test-apks/debug/app-debug.apk
             adb install test-apks/androidTest/debug/app-debug-androidTest.apk
+            if [ "${{ matrix.api }}" = "28" ]; then adb shell pm grant com.blackhole.app android.permission.WRITE_EXTERNAL_STORAGE; adb shell pm grant com.blackhole.app android.permission.READ_EXTERNAL_STORAGE; fi
             adb shell settings put secure immersive_mode_confirmations confirmed
             adb shell am instrument -w com.blackhole.app.test/androidx.test.runner.AndroidJUnitRunner | tee evidence/instrumentation.txt
             adb pull /sdcard/Android/data/com.blackhole.app/files/evidence evidence/screenshots || true

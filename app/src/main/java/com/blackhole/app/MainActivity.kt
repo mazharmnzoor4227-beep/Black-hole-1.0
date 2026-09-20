@@ -112,8 +112,8 @@ class MainActivity : Activity() {
             scope.launch { delay(2200); if(!historyShown && !Transfer.state.value.busy) render(Transfer.state.value) }; return
         }
         currentLink=link
-        if(Build.VERSION.SDK_INT == 28 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            pendingPermission=true; requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),28); return
+        if(Build.VERSION.SDK_INT == 28 && (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED || checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)) {
+            pendingPermission=true; requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE),28); return
         }
         if(Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED && !getPreferences(0).getBoolean("notificationAsked",false)) {
             getPreferences(0).edit().putBoolean("notificationAsked",true).apply()
@@ -127,7 +127,7 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode,permissions,grantResults)
         if(!pendingPermission) return
         pendingPermission=false
-        if(requestCode == 28 && grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED) { status.text="ALLOW STORAGE PERMISSION TO SAVE VIDEO"; return }
+        if(requestCode == 28 && (grantResults.isEmpty() || grantResults.any { it != PackageManager.PERMISSION_GRANTED })) { status.text="ALLOW STORAGE PERMISSION TO SAVE VIDEO"; return }
         startDownload()
     }
     private fun showHistory() {
