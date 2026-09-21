@@ -6,7 +6,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
 data class HistoryItem(val id: Long, val uri: String, val title: String, val source: String, val quality: String, val bytes: Long, val date: Long)
-class HistoryStore(context: Context) : SQLiteOpenHelper(context, "history.db", null, 1) {
+class HistoryStore(context: Context) : SQLiteOpenHelper(context, "history.db", null, 1), java.io.Closeable {
+    override fun close() { super.close() }
     override fun onCreate(db: SQLiteDatabase) { db.execSQL("CREATE TABLE downloads (id INTEGER PRIMARY KEY, uri TEXT NOT NULL, title TEXT NOT NULL, source TEXT NOT NULL, quality TEXT NOT NULL, bytes INTEGER NOT NULL, date INTEGER NOT NULL)") }
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
     fun add(uri: String, video: Video, quality: String, size: Long) {
