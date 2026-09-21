@@ -37,8 +37,6 @@ jobs:
           key: black-hole-debug-signing-v1
       - name: Compile and lint
         run: gradle --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
-      - name: Generate standard wrapper
-        run: gradle wrapper --gradle-version 8.11.1 --distribution-type bin
       - name: APK metadata and ABI validation
         run: |
           mkdir -p artifacts
