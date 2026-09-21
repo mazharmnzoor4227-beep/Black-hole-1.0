@@ -48,7 +48,7 @@ class MainActivity : Activity() {
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putString("shared",sharedLink); outState.putString("current", currentLink); super.onSaveInstanceState(outState) }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); acceptIntent(intent); if(historyShown) showHome() }
-    private fun acceptIntent(intent: Intent) { if(intent.action == Intent.ACTION_SEND) { sharedLink = Links.extract(intent.getStringExtra(Intent.EXTRA_TEXT)); currentLink = sharedLink } }
+    private fun acceptIntent(intent: Intent) { if(intent.action == Intent.ACTION_SEND) { sharedLink = Links.extract(intent.getStringExtra(Intent.EXTRA_TEXT)); currentLink = sharedLink; if(sharedLink != null && ::hole.isInitialized) hole.acknowledgeLink() } }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if(hasFocus && !historyShown) readClipboard() }
     private fun readClipboard() {
         if(sharedLink != null) return
@@ -56,7 +56,7 @@ class MainActivity : Activity() {
             val clip = getSystemService(ClipboardManager::class.java).primaryClip
             val text = if(clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
             val link = Links.extract(text)
-            if(link != lastClipboard) { lastClipboard = link; if(link != null) currentLink = link }
+            if(link != lastClipboard) { lastClipboard = link; if(link != null) { currentLink = link; if(::hole.isInitialized) hole.acknowledgeLink() } }
         }
     }
     override fun onStart() {
@@ -84,9 +84,10 @@ class MainActivity : Activity() {
         root.addView(stack,FrameLayout.LayoutParams(-1,dp(120),Gravity.CENTER).apply { topMargin = (side * .76f).toInt() })
         val history=label("HISTORY",10f).apply { contentDescription="Download history"; setOnClickListener { showHistory() } }
         root.addView(history,FrameLayout.LayoutParams(dp(90),dp(48),Gravity.BOTTOM or Gravity.END).apply { bottomMargin=dp(24); rightMargin=dp(16) })
-        hole.setOnClickListener { startDownload() }
+        hole.setOnClickListener { hole.acknowledgeLink(); startDownload() }
         setContentView(root)
         render(Transfer.state.value)
+        if(sharedLink != null) hole.post { hole.acknowledgeLink() }
     }
     private fun render(s: TransferState) {
         hole.animateHole(s.busy)

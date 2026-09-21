@@ -22,6 +22,8 @@ class HoleView(context: Context) : View(context) {
     private val bounds = RectF()
     private var angle = 0f
     private var animator: ValueAnimator? = null
+    private var feedback: ValueAnimator? = null
+    private var pulse = 0f
     var running = false
         private set
     init { contentDescription = "Black hole. Tap to download copied video link"; isClickable = true; isFocusable = true }
@@ -37,13 +39,31 @@ class HoleView(context: Context) : View(context) {
             }
         } else if(!active) { animator?.cancel(); animator=null }
     }
+    fun acknowledgeLink() {
+        if (!ValueAnimator.areAnimatorsEnabled() || !isAttachedToWindow) return
+        feedback?.cancel()
+        feedback = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 650
+            interpolator = LinearInterpolator()
+            addUpdateListener { pulse = it.animatedValue as Float; invalidate() }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) { pulse = 0f; invalidate() }
+            })
+            start()
+        }
+    }
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.save(); canvas.rotate(angle, width/2f, height/2f)
+        canvas.save()
+        val wave = kotlin.math.sin(pulse * Math.PI).toFloat()
+        val shake = kotlin.math.sin(pulse * Math.PI * 8).toFloat() * wave
+        canvas.translate(shake * resources.displayMetrics.density * 2f, 0f)
+        canvas.scale(1f + wave * .025f, 1f + wave * .025f, width/2f, height/2f)
+        canvas.rotate(angle + shake * 1.5f, width/2f, height/2f)
         bounds.set(0f,0f,width.toFloat(),height.toFloat())
         canvas.drawBitmap(bitmap,null,bounds,paint)
         canvas.restore()
     }
-    override fun onDetachedFromWindow() { animator?.cancel(); animator=null; super.onDetachedFromWindow() }
+    override fun onDetachedFromWindow() { animator?.cancel(); animator=null; feedback?.cancel(); feedback=null; pulse=0f; super.onDetachedFromWindow() }
     override fun onAttachedToWindow() { super.onAttachedToWindow(); animateHole(running) }
 }

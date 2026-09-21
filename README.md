@@ -1,3 +1,16 @@
+> Delivery status: social downloads require the live backend deployment below. Diagnostic APKs are not final social-downloader releases. Version 1.0.1 adds link/tap shake feedback and free-host warm-up handling; it does not pretend an undeployed server is connected.
+
+## Free personal deployment (2–3 people)
+
+`render.yaml` deploys the existing extraction Docker service on Render's Free plan.
+Sign in to Render, create a Blueprint from this repository, and check that the service plan says Free before deploying. No database or paid disk is needed. Do not add a payment method for this free-only setup. Render can suspend service at free limits and may reject high outbound traffic; this is not an unlimited or production-SLA service.
+
+After deployment, put its actual HTTPS origin in `backend-url.txt` (public configuration, no secrets). `/health` must identify `service=black-hole` and `api_version=1`. Set repository Actions variable `BLACK_HOLE_TEST_URL` to a public social video for the extraction delivery check. CI downloads that actual video and checks the full MP4 response before accepting a configured build. Repeat with representative Instagram/TikTok/Facebook/Pinterest URLs before claiming platform coverage; one successful sample never proves all links work.
+
+The server may take about a minute to wake after inactivity. The phone waits for health before creating a download job. Files are temporary on the server and permanent only after saving on the phone. The build keeps yt-dlp and FFmpeg on the server, not in the APK.
+
+Video policy: highest available compatible H.264/AAC source format, resolution prioritized, with stream-copy audio/video merging. No upscale or re-encoding. The platform's available stream can differ from the creator's original upload; original-upload quality and every public URL cannot be guaranteed. A higher-resolution incompatible codec can be excluded for older-phone playback compatibility.
+
 # BLACK HOLE
 
 A clean Kotlin Android project created from scratch. No old BLACK HOLE code, accounts, Firebase, ads, embedded Python, FFmpeg or native APK libraries.

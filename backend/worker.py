@@ -48,6 +48,7 @@ def main():
         'max_filesize': 1024**3, 'outtmpl': str(folder / 'video.%(ext)s'),
         'cachedir': False, 'proxy': '', 'geo_bypass': False,
         'format': 'bestvideo[vcodec^=avc1][protocol=https]+bestaudio[acodec^=mp4a][protocol=https]/best[ext=mp4][vcodec^=avc1][acodec!=none][protocol=https]/best[ext=mp4][vcodec^=avc1][acodec!=none][protocol=m3u8_native]',
+        'format_sort': ['res', 'fps', 'br'], 'format_sort_force': True,
         'merge_output_format': 'mp4', 'hls_prefer_native': True,
         'postprocessor_args': {'ffmpeg_i': ['-protocol_whitelist', 'file,pipe,crypto']},
     }

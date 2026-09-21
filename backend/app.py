@@ -97,7 +97,7 @@ async def no_cache(request, call_next):
 
 @app.get('/health')
 async def health():
-    return {'status': 'ok'}
+    return {'status': 'ok', 'service': 'black-hole', 'api_version': 1}
 
 
 @app.get('/v1/jobs')

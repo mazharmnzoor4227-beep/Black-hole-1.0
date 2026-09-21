@@ -11,13 +11,13 @@ import java.net.URL
 class UserFailure(message: String) : IOException(message)
 data class Video(val url: String, val title: String, val source: String, val quality: String)
 object Network {
-    fun open(raw: String): HttpURLConnection {
+    fun open(raw: String, readMillis: Int = 30000): HttpURLConnection {
         var next = raw
         repeat(6) {
             val u = URL(next)
             if (u.userInfo != null || (u.protocol != "https" && !(BuildConfig.DEBUG && u.host == "10.0.2.2" && u.protocol == "http"))) throw UserFailure("USE A PUBLIC HTTPS VIDEO LINK")
             val c = (u.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15000; readTimeout = 30000; instanceFollowRedirects = false
+                connectTimeout = 15000; readTimeout = readMillis; instanceFollowRedirects = false
                 setRequestProperty("User-Agent", "BLACK-HOLE/1.0 Android")
                 setRequestProperty("Accept-Encoding", "identity")
             }
@@ -38,8 +38,8 @@ object Network {
         }
         throw UserFailure("TOO MANY VIDEO REDIRECTS")
     }
-    private fun json(raw: String): JSONObject {
-        val c = open(raw)
+    private fun json(raw: String, readMillis: Int = 30000): JSONObject {
+        val c = open(raw, readMillis)
         try {
             val bytes = c.inputStream.use { input ->
                 val out = java.io.ByteArrayOutputStream()
@@ -56,6 +56,21 @@ object Network {
         val path = URL(link).path.lowercase()
         if (path.endsWith(".mp4") || path.endsWith(".m4v")) return Video(link, "Video", URL(link).host, "")
         if (BuildConfig.API_URL.isBlank()) throw UserFailure("SOCIAL DOWNLOAD SERVER IS NOT CONNECTED")
+        // A free host can take about a minute to wake. Only retry the idempotent
+        // health request; never duplicate job creation after an uncertain timeout.
+        var ready = false
+        repeat(3) {
+            if (!ready) {
+                currentCoroutineContext().ensureActive()
+                try {
+                    val health = json(BuildConfig.API_URL + "/health", 90000)
+                    ready = health.optString("service") == "black-hole" && health.optInt("api_version") == 1
+                } catch (e: IOException) { if(it == 2) throw e }
+                catch (e: org.json.JSONException) { if(it == 2) throw UserFailure("DOWNLOAD SERVER IS STARTING. TRY AGAIN") }
+                if (!ready) delay(3000)
+            }
+        }
+        if (!ready) throw UserFailure("DOWNLOAD SERVER IS NOT READY")
         val start = json(BuildConfig.API_URL + "/v1/jobs?url=" + java.net.URLEncoder.encode(link, "UTF-8"))
         val id = start.getString("id")
         if (!Regex("[a-f0-9]{32}").matches(id)) throw UserFailure("INVALID SERVER RESPONSE")

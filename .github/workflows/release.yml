@@ -9,6 +9,7 @@ jobs:
     timeout-minutes: 25
     env:
       BLACK_HOLE_API_URL: ${{ vars.BLACK_HOLE_API_URL }}
+      BLACK_HOLE_TEST_URL: ${{ vars.BLACK_HOLE_TEST_URL }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -19,7 +20,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import os,base64,pathlib
-          required=('BLACK_HOLE_API_URL','ANDROID_KEYSTORE_BASE64','ANDROID_KEYSTORE_PASSWORD','ANDROID_KEY_ALIAS','ANDROID_KEY_PASSWORD')
+          required=('ANDROID_KEYSTORE_BASE64','ANDROID_KEYSTORE_PASSWORD','ANDROID_KEY_ALIAS','ANDROID_KEY_PASSWORD')
           missing=[key for key in required if not os.getenv(key)]
           if missing: raise SystemExit('Missing production configuration: '+', '.join(missing))
           path=pathlib.Path(os.environ['RUNNER_TEMP'])/'release.jks'
@@ -27,6 +28,8 @@ jobs:
           path.chmod(0o600)
           with open(os.environ['GITHUB_ENV'],'a') as f: f.write('ANDROID_KEYSTORE_PATH='+str(path)+'\n')
           PY
+      - name: Verify real social download before release
+        run: python3 scripts/check_backend.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

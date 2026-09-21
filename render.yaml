@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: black-hole-extractor
+    runtime: docker
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8080"
