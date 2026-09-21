@@ -45,9 +45,9 @@ jobs:
       - name: Verify release signature
         run: |
           mkdir -p release
-          cp app/build/outputs/apk/release/app-release.apk release/BLACK-HOLE-1.0.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose release/BLACK-HOLE-1.0.apk > release/signature.txt
-          sha256sum release/BLACK-HOLE-1.0.apk > release/sha256.txt
+          cp app/build/outputs/apk/release/app-release.apk release/BLACK-HOLE-1.0.2.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose release/BLACK-HOLE-1.0.2.apk > release/signature.txt
+          sha256sum release/BLACK-HOLE-1.0.2.apk > release/sha256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: BLACK-HOLE-signed-release

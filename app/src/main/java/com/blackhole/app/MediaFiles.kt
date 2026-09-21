@@ -3,6 +3,7 @@ package com.blackhole.app
 import android.content.ContentValues
 import android.content.Context
 import android.media.MediaMetadataRetriever
+import android.media.MediaExtractor
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -17,13 +18,24 @@ object MediaFiles {
     const val MAX_BYTES = 2L * 1024 * 1024 * 1024
     fun quality(file: File): String {
         val r = MediaMetadataRetriever()
+        val extractor = MediaExtractor()
         try {
             r.setDataSource(file.absolutePath)
             val height = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
             val width = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
-            if (height <= 0 || width <= 0) throw UserFailure("THIS FILE IS NOT A PLAYABLE VIDEO")
+            val duration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            extractor.setDataSource(file.absolutePath)
+            var hasVideo = false
+            var hasAudio = false
+            for (index in 0 until extractor.trackCount) {
+                val mime = extractor.getTrackFormat(index).getString(android.media.MediaFormat.KEY_MIME).orEmpty()
+                if (mime.startsWith("video/")) hasVideo = true
+                if (mime.startsWith("audio/")) hasAudio = true
+            }
+            if (height <= 0 || width <= 0 || duration <= 0 || !hasVideo) throw UserFailure("THIS FILE IS NOT A PLAYABLE VIDEO")
+            if (!hasAudio) throw UserFailure("DOWNLOADED VIDEO HAS NO AUDIO")
             return "${width}×${height} · MP4"
-        } finally { r.release() }
+        } finally { extractor.release(); r.release() }
     }
     suspend fun publish(context: Context, file: File, title: String): Uri {
         val safe = title.replace(Regex("[^\\p{L}\\p{N} _-]"), "").take(70).ifBlank { "Video" }
@@ -76,5 +88,15 @@ object MediaFiles {
         }
         prefs.edit().clear().commit()
         File(context.cacheDir, "transfer.part").delete()
+    }
+    fun delete(context: Context, uri: Uri): Boolean {
+        if (Build.VERSION.SDK_INT >= 29 || uri.authority != context.packageName + ".files") {
+            return context.contentResolver.delete(uri, null, null) > 0
+        }
+        val name = uri.lastPathSegment?.takeIf { it.isNotBlank() } ?: return false
+        @Suppress("DEPRECATION") val directory = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "BLACK HOLE")
+        val target = File(directory, name)
+        if (target.canonicalFile.parentFile != directory.canonicalFile) return false
+        return target.delete()
     }
 }

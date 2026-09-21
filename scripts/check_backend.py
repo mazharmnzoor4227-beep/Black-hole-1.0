@@ -34,6 +34,10 @@ def main():
         if status['status'] == 'failed':
             raise SystemExit(status.get('error', 'Extraction failed'))
         if status['status'] == 'ready':
+            assert status.get('has_audio') is True, 'Backend did not verify an audio track'
+            assert int(status.get('width') or 0) > 0 and int(status.get('height') or 0) > 0, 'Missing output dimensions'
+            assert status.get('video_codec') == 'h264', 'Output video is not H.264-compatible'
+            assert status.get('audio_codec') == 'aac', 'Output audio is not AAC-compatible'
             with urlopen(base + '/v1/media/' + job, timeout=120) as response:
                 expected = int(response.headers['Content-Length'])
                 count = 0
@@ -43,7 +47,8 @@ def main():
                 while block := response.read(1024 * 1024):
                     count += len(block)
                 assert count == expected and count > 32, 'Incomplete video'
-            print(json.dumps({'verified_bytes': count, 'quality': status.get('quality'), 'title': status.get('title')}))
+            assert count == int(status.get('bytes') or 0), 'Metadata size does not match downloaded media'
+            print(json.dumps({'verified_bytes': count, 'quality': status.get('quality'), 'title': status.get('title'), 'audio_codec': status.get('audio_codec'), 'video_codec': status.get('video_codec')}))
             return
         time.sleep(2)
     raise SystemExit('Extraction timed out')

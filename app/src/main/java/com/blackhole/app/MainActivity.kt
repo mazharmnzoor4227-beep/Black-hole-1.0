@@ -102,7 +102,7 @@ class MainActivity : Activity() {
             Phase.COMPLETE -> "DOWNLOAD COMPLETE"
             Phase.ERROR -> s.message
         }
-        detail.text=if(s.phase == Phase.COMPLETE) "100% · SAVED TO GALLERY / DOWNLOADS\n${s.detail}" else s.detail
+        detail.text=if(s.phase == Phase.COMPLETE) "100% · SAVED TO DOWNLOADS\n${s.detail}" else s.detail
     }
     private fun startDownload() {
         if(Transfer.state.value.busy) return
@@ -161,7 +161,11 @@ class MainActivity : Activity() {
                 }.onFailure { Toast.makeText(this,"Unable to share this video",Toast.LENGTH_SHORT).show() }
                 2 -> AlertDialog.Builder(this).setMessage("Delete this downloaded video?").setNegativeButton("Cancel",null).setPositiveButton("Delete") { _,_ ->
                     scope.launch {
-                        val ok=withContext(Dispatchers.IO) { runCatching { contentResolver.delete(uri,null,null); HistoryStore(this@MainActivity).use { it.remove(item.id) } }.isSuccess }
+                        val ok=withContext(Dispatchers.IO) { runCatching {
+                            if (!MediaFiles.delete(this@MainActivity, uri)) return@runCatching false
+                            HistoryStore(this@MainActivity).use { it.remove(item.id) }
+                            true
+                        }.getOrDefault(false) }
                         if(ok && historyShown) showHistory() else if(!ok) Toast.makeText(this@MainActivity,"Cannot delete this file",Toast.LENGTH_SHORT).show()
                     }
                 }.show()

@@ -1,4 +1,4 @@
-> Delivery status: social downloads require the live backend deployment below. Diagnostic APKs are not final social-downloader releases. Version 1.0.1 adds link/tap shake feedback and free-host warm-up handling; it does not pretend an undeployed server is connected.
+> Delivery status: social downloads require the live backend deployment below. Diagnostic APKs are not final social-downloader releases. Version 1.0.2 keeps the existing UI, verifies both video and audio before saving, fixes Android 9 history deletion, deduplicates extraction jobs and improves backend media validation; it does not pretend an undeployed server is connected.
 
 ## Free personal deployment (2–3 people)
 
@@ -9,7 +9,7 @@ After deployment, put its actual HTTPS origin in `backend-url.txt` (public confi
 
 The server may take about a minute to wake after inactivity. The phone waits for health before creating a download job. Files are temporary on the server and permanent only after saving on the phone. The build keeps yt-dlp and FFmpeg on the server, not in the APK.
 
-Video policy: highest available compatible H.264/AAC source format, resolution prioritized, with stream-copy audio/video merging. No upscale or re-encoding. The platform's available stream can differ from the creator's original upload; original-upload quality and every public URL cannot be guaranteed. A higher-resolution incompatible codec can be excluded for older-phone playback compatibility.
+Video policy: highest available compatible H.264/AAC source format, resolution prioritized, with stream-copy audio/video merging. The backend and Android client both reject output without an audio track. No upscale or re-encoding. The platform's available stream can differ from the creator's original upload; original-upload quality and every public URL cannot be guaranteed. A higher-resolution incompatible codec can be excluded for older-phone playback compatibility.
 
 # BLACK HOLE
 
@@ -30,7 +30,7 @@ A clean Kotlin Android project created from scratch. No old BLACK HOLE code, acc
 
 JDK 17, Gradle 8.11.1, Android SDK 36 / build tools 36.0.0. Run `./gradlew :app:assembleDebug :app:lintDebug` (or `gradlew.bat` on Windows). Standard Gradle wrapper files are committed.
 
-GitHub Actions uploads `BLACK-HOLE-APK` containing the installable debug-signed testing APK, exact byte size, SHA-256, commit SHA, signature and manifest evidence. Device jobs install that exact APK and launch the real MAIN activity on API 28, 29 and 36. They test a real generated MP4 over HTTP (emulator-only debug exception), save/readback, 100%, history and screen black pixels. Screenshots and instrumentation output are separate artifacts.
+GitHub Actions uploads `BLACK-HOLE-diagnostic-APK` containing the installable debug-signed `BLACK-HOLE-1.0.2-diagnostic.apk`, exact byte size, SHA-256, commit SHA, signature and manifest evidence. Device jobs install that exact APK and launch the real MAIN activity on API 28, 29 and 36. They test a real generated MP4 over HTTP (emulator-only debug exception), save/readback, 100%, history and screen black pixels. Screenshots and instrumentation output are separate artifacts.
 
 Minimum Android: 9 / API 28. Target/compile: Android 16 / API 36. No ABI filters or native `.so` files. Compatibility across every manufacturer or future Android release is not claimed by compilation alone.
 
@@ -48,11 +48,11 @@ Public videos can still require login or be blocked by platforms, region, anti-b
 
 ## Phone acceptance tests
 
-1. Download and extract `BLACK-HOLE-APK` from a green Actions run; install `BLACK-HOLE-1.0-test.apk`. Allow installation from your file manager if Android asks.
+1. Download and extract `BLACK-HOLE-diagnostic-APK` from a green Actions run; install `BLACK-HOLE-1.0.2-diagnostic.apk`. Allow installation from your file manager if Android asks. Until a live backend passes the social check, this remains a direct-MP4 diagnostic build.
 2. Launch from the launcher: black screen, supplied hole, small HISTORY; no login or URL box.
 3. With no copied URL, tap: `COPY A VIDEO LINK FIRST`.
 4. Copy or share a public direct MP4 URL. Tap the hole; allow storage on Android 9 and optionally notifications on Android 13+.
-5. Confirm rotation and actual progress; then 100%, stopped rotation and `DOWNLOAD COMPLETE`.
+5. Confirm rotation and actual progress; then 100%, stopped rotation, `DOWNLOAD COMPLETE` and `SAVED TO DOWNLOADS`.
 6. Open Files → Downloads → BLACK HOLE; play the complete video. Check Gallery if it indexes Downloads.
 7. Open HISTORY; test play, share and confirmed delete.
 8. Repeat on mobile data, Wi-Fi, offline, invalid URL and interrupted connection. Lock the phone during a longer transfer, reopen, check result. Some OEM battery restrictions may interrupt services.

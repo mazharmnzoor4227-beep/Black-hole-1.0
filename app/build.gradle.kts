@@ -6,8 +6,8 @@ android {
         applicationId = "com.blackhole.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.1"
+        versionCode = 3
+        versionName = "1.0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val endpoint = (providers.environmentVariable("BLACK_HOLE_API_URL").orNull?.takeIf { it.isNotBlank() }
             ?: rootProject.file("backend-url.txt").readText()).trim().trimEnd('/')

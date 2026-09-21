@@ -1,5 +1,6 @@
 """Single-instance, bounded, anonymous public-video extraction service."""
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -17,6 +18,7 @@ from fastapi.responses import FileResponse
 ROOT = Path(os.getenv('MEDIA_ROOT', '/tmp/black-hole-media'))
 ROOT.mkdir(parents=True, exist_ok=True)
 JOBS = {}
+JOB_KEYS = {}
 RATES = defaultdict(deque)
 TASKS = set()
 LIMIT = asyncio.Semaphore(2)
@@ -44,15 +46,38 @@ async def extract(job_id, url):
                 if time.monotonic() - started > 300 or disk_used() > MAX_CACHE:
                     raise RuntimeError('Extraction limit reached')
             if process.returncode != 0:
-                raise RuntimeError('Extractor failed')
+                error_file = folder / 'error.json'
+                if error_file.is_file():
+                    error = json.loads(error_file.read_text()).get('error')
+                    if error:
+                        raise RuntimeError(error)
+                raise RuntimeError('VIDEO UNAVAILABLE, RESTRICTED OR NOT SUPPORTED')
             job.update(json.loads((folder / 'metadata.json').read_text()))
             job['status'] = 'ready'
-        except BaseException:
+        except asyncio.CancelledError:
             if process is not None and process.returncode is None:
                 process.kill()
                 await process.wait()
             shutil.rmtree(folder, ignore_errors=True)
-            job.update(status='failed', error='VIDEO UNAVAILABLE, RESTRICTED OR NOT SUPPORTED')
+            raise
+        except Exception as exc:
+            if process is not None and process.returncode is None:
+                process.kill()
+                await process.wait()
+            shutil.rmtree(folder, ignore_errors=True)
+            message = str(exc)
+            allowed = {
+                'VIDEO UNAVAILABLE, RESTRICTED OR NOT SUPPORTED',
+                'VIDEO REQUIRES LOGIN OR IS PRIVATE',
+                'VIDEO EXTRACTION TIMED OUT',
+                'VIDEO EXCEEDS THE 1 GB SERVER LIMIT',
+                'NO COMPATIBLE H.264/AAC MP4 AVAILABLE',
+                'DOWNLOADED VIDEO HAS NO AUDIO',
+                'DOWNLOADED FILE IS NOT A PLAYABLE MP4',
+                'Capacity reached',
+                'Extraction limit reached',
+            }
+            job.update(status='failed', error=message if message in allowed else 'VIDEO UNAVAILABLE, RESTRICTED OR NOT SUPPORTED')
         finally:
             job['expires'] = time.monotonic() + TTL
 
@@ -64,6 +89,8 @@ async def cleanup():
         for key, job in list(JOBS.items()):
             if job['status'] != 'processing' and job['expires'] < now:
                 JOBS.pop(key, None)
+                if JOB_KEYS.get(job['key']) == key:
+                    JOB_KEYS.pop(job['key'], None)
                 shutil.rmtree(ROOT / key, ignore_errors=True)
         for key, rate in list(RATES.items()):
             if not rate or rate[-1] < now - 60:
@@ -111,6 +138,11 @@ async def create_job(url: str, request: Request):
         valid = False
     if not valid:
         raise HTTPException(400, 'Public HTTPS URL required')
+    key = hashlib.sha256(url.encode('utf-8')).hexdigest()
+    existing_id = JOB_KEYS.get(key)
+    existing = JOBS.get(existing_id) if existing_id else None
+    if existing and (existing['status'] == 'processing' or (existing['status'] == 'ready' and existing['expires'] >= time.monotonic())):
+        return {'id': existing_id}
     # Trust proxy headers only when uvicorn is configured with your known proxy IPs.
     ip = request.client.host if request.client else 'unknown'
     now = time.monotonic()
@@ -121,7 +153,8 @@ async def create_job(url: str, request: Request):
         raise HTTPException(429, 'Try again later')
     rate.append(now)
     job_id = uuid.uuid4().hex
-    JOBS[job_id] = {'status': 'processing', 'expires': now + TTL}
+    JOBS[job_id] = {'status': 'processing', 'expires': now + TTL, 'key': key}
+    JOB_KEYS[key] = job_id
     task = asyncio.create_task(extract(job_id, url))
     TASKS.add(task)
     task.add_done_callback(TASKS.discard)
@@ -140,7 +173,7 @@ def get_job(job_id):
 @app.get('/v1/jobs/{job_id}')
 async def status(job_id: str):
     job = get_job(job_id)
-    return {key: value for key, value in job.items() if key != 'expires'}
+    return {key: value for key, value in job.items() if key not in ('expires', 'key')}
 
 
 @app.get('/v1/media/{job_id}')

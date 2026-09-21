@@ -48,12 +48,12 @@ jobs:
       - name: APK metadata and ABI validation
         run: |
           mkdir -p artifacts
-          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BLACK-HOLE-1.0-test.apk
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging artifacts/BLACK-HOLE-1.0-test.apk > artifacts/apk-metadata.txt
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose artifacts/BLACK-HOLE-1.0-test.apk > artifacts/signature.txt
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BLACK-HOLE-1.0.2-diagnostic.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging artifacts/BLACK-HOLE-1.0.2-diagnostic.apk > artifacts/apk-metadata.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose artifacts/BLACK-HOLE-1.0.2-diagnostic.apk > artifacts/signature.txt
           python3 - <<'PY'
           import os,zipfile,hashlib,json
-          p='artifacts/BLACK-HOLE-1.0-test.apk'
+          p='artifacts/BLACK-HOLE-1.0.2-diagnostic.apk'
           with zipfile.ZipFile(p) as z:
               assert not any(n.startswith('lib/') for n in z.namelist()), 'Unexpected native libraries'
           metadata=open('artifacts/apk-metadata.txt').read()

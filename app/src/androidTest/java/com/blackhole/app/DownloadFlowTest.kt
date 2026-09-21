@@ -74,5 +74,13 @@ class DownloadFlowTest {
         device.findObject(By.text("HISTORY")).click()
         assertTrue(device.wait(Until.hasObject(By.textContains("320×240")),5000))
         device.takeScreenshot(File(directory,"history.png"))
+        device.findObject(By.textContains("320×240")).click()
+        assertTrue(device.wait(Until.hasObject(By.text("Delete")),5000))
+        device.findObject(By.text("Delete")).click()
+        assertTrue(device.wait(Until.hasObject(By.text("Delete")),5000))
+        device.findObject(By.text("Delete")).click()
+        assertTrue(device.wait(Until.hasObject(By.text("NO DOWNLOADS YET")),5000))
+        assertTrue(HistoryStore(context).use { it.list() }.isEmpty())
+        assertTrue(runCatching { context.contentResolver.openInputStream(uri)?.use { it.read() }; false }.getOrDefault(true))
     }
 }
