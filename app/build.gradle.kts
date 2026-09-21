@@ -6,13 +6,9 @@ android {
         applicationId = "com.blackhole.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        val endpoint = (providers.environmentVariable("BLACK_HOLE_API_URL").orNull?.takeIf { it.isNotBlank() }
-            ?: rootProject.file("backend-url.txt").readText()).trim().trimEnd('/')
-        require(endpoint.isEmpty() || endpoint.startsWith("https://")) { "Backend must use HTTPS" }
-        buildConfigField("String", "API_URL", "\"${endpoint.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
     buildFeatures { buildConfig = true }
     signingConfigs {
@@ -41,6 +37,8 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
+    implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

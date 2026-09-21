@@ -6,10 +6,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
-      BLACK_HOLE_API_URL: ${{ vars.BLACK_HOLE_API_URL }}
-      BLACK_HOLE_TEST_URL: ${{ vars.BLACK_HOLE_TEST_URL }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -28,8 +26,6 @@ jobs:
           path.chmod(0o600)
           with open(os.environ['GITHUB_ENV'],'a') as f: f.write('ANDROID_KEYSTORE_PATH='+str(path)+'\n')
           PY
-      - name: Verify real social download before release
-        run: python3 scripts/check_backend.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -45,9 +41,9 @@ jobs:
       - name: Verify release signature
         run: |
           mkdir -p release
-          cp app/build/outputs/apk/release/app-release.apk release/BLACK-HOLE-1.0.2.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose release/BLACK-HOLE-1.0.2.apk > release/signature.txt
-          sha256sum release/BLACK-HOLE-1.0.2.apk > release/sha256.txt
+          cp app/build/outputs/apk/release/app-release.apk release/BLACK-HOLE-1.1.0.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs release/BLACK-HOLE-1.1.0.apk > release/signature.txt
+          sha256sum release/BLACK-HOLE-1.1.0.apk > release/sha256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: BLACK-HOLE-signed-release

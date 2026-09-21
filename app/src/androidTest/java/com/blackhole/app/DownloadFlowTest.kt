@@ -53,7 +53,8 @@ class DownloadFlowTest {
         instrumentation.waitForIdleSync()
         device.waitForIdle()
         device.wait(Until.findObject(By.desc("Black hole. Tap to download copied video link")),5000).click()
-        assertTrue("Download failed: ${Transfer.state.value}", device.wait(Until.hasObject(By.text("DOWNLOAD COMPLETE")),90000))
+        // First launch extracts the embedded Python/FFmpeg runtime before yt-dlp starts.
+        assertTrue("Download failed: ${Transfer.state.value}", device.wait(Until.hasObject(By.text("DOWNLOAD COMPLETE")),180000))
         assertEquals(Phase.COMPLETE,Transfer.state.value.phase)
         assertEquals(100,Transfer.state.value.percent)
         val uri=android.net.Uri.parse(Transfer.state.value.uri)

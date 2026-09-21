@@ -12,10 +12,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    env:
-      BLACK_HOLE_API_URL: ${{ vars.BLACK_HOLE_API_URL }}
-      BLACK_HOLE_TEST_URL: ${{ vars.BLACK_HOLE_TEST_URL }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -32,13 +29,6 @@ jobs:
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
       - name: Backend policy tests
         run: python3 -m unittest discover -s backend -v
-      - name: Verify configured social backend
-        run: |
-          if [ -n "$BLACK_HOLE_API_URL" ] || [ -s backend-url.txt ]; then
-            python3 scripts/check_backend.py
-          else
-            echo "::warning::No social backend configured. This is a diagnostic build, not a downloadable social-video release."
-          fi
       - uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
@@ -48,24 +38,26 @@ jobs:
       - name: APK metadata and ABI validation
         run: |
           mkdir -p artifacts
-          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BLACK-HOLE-1.0.2-diagnostic.apk
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging artifacts/BLACK-HOLE-1.0.2-diagnostic.apk > artifacts/apk-metadata.txt
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose artifacts/BLACK-HOLE-1.0.2-diagnostic.apk > artifacts/signature.txt
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BLACK-HOLE-1.1.0-direct.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging artifacts/BLACK-HOLE-1.1.0-direct.apk > artifacts/apk-metadata.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs artifacts/BLACK-HOLE-1.1.0-direct.apk > artifacts/signature.txt
           python3 - <<'PY'
           import os,zipfile,hashlib,json
-          p='artifacts/BLACK-HOLE-1.0.2-diagnostic.apk'
+          p='artifacts/BLACK-HOLE-1.1.0-direct.apk'
           with zipfile.ZipFile(p) as z:
-              assert not any(n.startswith('lib/') for n in z.namelist()), 'Unexpected native libraries'
+              names=z.namelist()
+              for abi in ('arm64-v8a','armeabi-v7a','x86','x86_64'):
+                  assert any(n.startswith('lib/'+abi+'/') for n in names), 'Missing native ABI '+abi
           metadata=open('artifacts/apk-metadata.txt').read()
           assert "sdkVersion:'28'" in metadata
           assert "targetSdkVersion:'36'" in metadata
           assert "launchable-activity: name='com.blackhole.app.MainActivity'" in metadata
-          assert os.path.getsize(p) < 30*1024*1024
-          json.dump({'bytes':os.path.getsize(p),'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'commit':os.environ['GITHUB_SHA'],'backend_configured':bool(os.getenv('BLACK_HOLE_API_URL'))},open('artifacts/build.json','w'),indent=2)
+          assert os.path.getsize(p) < 260*1024*1024
+          json.dump({'bytes':os.path.getsize(p),'sha256':hashlib.sha256(open(p,'rb').read()).hexdigest(),'commit':os.environ['GITHUB_SHA'],'download_engine':'on-device yt-dlp + FFmpeg'},open('artifacts/build.json','w'),indent=2)
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: BLACK-HOLE-diagnostic-APK
+          name: BLACK-HOLE-1.1.0-direct-APK
           path: artifacts/
       - uses: actions/upload-artifact@v4
         with:
@@ -88,7 +80,7 @@ jobs:
   device-tests:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:

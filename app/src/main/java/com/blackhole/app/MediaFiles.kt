@@ -87,7 +87,7 @@ object MediaFiles {
             }
         }
         prefs.edit().clear().commit()
-        File(context.cacheDir, "transfer.part").delete()
+        OnDeviceExtractor.cleanup(context)
     }
     fun delete(context: Context, uri: Uri): Boolean {
         if (Build.VERSION.SDK_INT >= 29 || uri.authority != context.packageName + ".files") {

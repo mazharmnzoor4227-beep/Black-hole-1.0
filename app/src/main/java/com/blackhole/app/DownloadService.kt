@@ -7,14 +7,10 @@ import android.os.Build
 import android.os.IBinder
 import android.text.format.Formatter
 import kotlinx.coroutines.*
-import java.io.File
-import java.net.SocketTimeoutException
-import java.net.UnknownHostException
 
 class DownloadService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
-    private var connection: java.net.HttpURLConnection? = null
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onCreate() {
         super.onCreate()
@@ -29,76 +25,45 @@ class DownloadService : Service() {
             .addAction(Notification.Action.Builder(null, "Cancel", cancel).build()).build()
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if(intent?.action == "cancel") { job?.cancel(); return START_NOT_STICKY }
+        if(intent?.action == "cancel") { OnDeviceExtractor.cancel(); job?.cancel(); return START_NOT_STICKY }
         if(job != null && job?.isCompleted == false) return START_NOT_STICKY
         val link = Links.extract(intent?.getStringExtra("url")) ?: run { stopSelf(); return START_NOT_STICKY }
         if(Build.VERSION.SDK_INT >= 29) startForeground(1, notification("Analyzing video"), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         else startForeground(1, notification("Analyzing video"))
         Transfer.update(TransferState(Phase.ANALYZING))
         job = scope.launch {
-            val file = File(cacheDir, "transfer.part")
             try {
                 MediaFiles.recover(this@DownloadService)
-                val video = Network.resolve(link)
-                ensureActive()
-                val c = Network.open(video.url)
-                connection = c
-                try {
-                    val type = c.contentType.orEmpty().substringBefore(';').lowercase()
-                    if(type.contains("text") || type.contains("json") || type.contains("mpegurl")) throw UserFailure("LINK DOES NOT CONTAIN A DOWNLOADABLE MP4")
-                    val length = c.contentLengthLong
-                    if(length > MediaFiles.MAX_BYTES) throw UserFailure("VIDEO EXCEEDS THE 2 GB LIMIT")
-                    val requiredSpace = if (length > 0L) length * 2L else 100L * 1024L * 1024L
-                    if (cacheDir.usableSpace < requiredSpace) throw UserFailure("NOT ENOUGH FREE STORAGE")
-                    Transfer.update(TransferState(Phase.DOWNLOADING, if(length > 0) 0 else null, video.quality))
-                    var total = 0L
-                    var lastUpdate = 0L
-                    c.inputStream.use { input -> file.outputStream().use { output ->
-                        val buffer = ByteArray(65536)
-                        while(true) {
-                            ensureActive()
-                            val n = input.read(buffer)
-                            if(n < 0) break
-                            total += n
-                            if(total > MediaFiles.MAX_BYTES) throw UserFailure("VIDEO EXCEEDS THE 2 GB LIMIT")
-                            output.write(buffer,0,n)
-                            val now = android.os.SystemClock.elapsedRealtime()
-                            if(now-lastUpdate >= 200) {
-                                lastUpdate = now
-                                val percent = if(length > 0) ((total * 100 / length).toInt()).coerceIn(0,99) else null
-                                val detail = listOf(video.quality, Formatter.formatFileSize(this@DownloadService, total)).filter { it.isNotBlank() }.joinToString(" · ")
-                                Transfer.update(TransferState(Phase.DOWNLOADING, percent, detail))
-                                if(Build.VERSION.SDK_INT < 33 || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) getSystemService(NotificationManager::class.java).notify(1, notification("Downloading video", percent))
-                            }
-                        }
-                    } }
-                    if(total == 0L || (length > 0 && total != length)) throw UserFailure("DOWNLOAD INTERRUPTED. TAP TO RETRY")
-                } finally { c.disconnect(); connection = null }
+                val downloaded = OnDeviceExtractor.download(this@DownloadService, link) { percent, detail ->
+                    Transfer.update(TransferState(Phase.DOWNLOADING, percent, detail))
+                    if(Build.VERSION.SDK_INT < 33 || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        getSystemService(NotificationManager::class.java).notify(1, notification("Downloading video", percent))
+                    }
+                }
                 ensureActive()
                 Transfer.update(TransferState(Phase.SAVING, 99, "SAVING VIDEO"))
-                val quality = MediaFiles.quality(file)
-                val uri = MediaFiles.publish(this@DownloadService, file, video.title)
+                val quality = MediaFiles.quality(downloaded.file)
+                val size = downloaded.file.length()
+                val uri = MediaFiles.publish(this@DownloadService, downloaded.file, downloaded.metadata.title)
                 // A failed history insertion must not turn a saved file into a download failure.
-                val historyOk = runCatching { HistoryStore(this@DownloadService).use { it.add(uri.toString(), video, quality, file.length()) } }.isSuccess
-                Transfer.update(TransferState(Phase.COMPLETE, 100, "$quality · ${Formatter.formatFileSize(this@DownloadService, file.length())}", if(historyOk) "" else "SAVED; HISTORY COULD NOT BE UPDATED", uri.toString()))
+                val historyOk = runCatching { HistoryStore(this@DownloadService).use { it.add(uri.toString(), downloaded.metadata, quality, size) } }.isSuccess
+                Transfer.update(TransferState(Phase.COMPLETE, 100, "$quality · ${Formatter.formatFileSize(this@DownloadService, size)}", if(historyOk) "" else "SAVED; HISTORY COULD NOT BE UPDATED", uri.toString()))
             } catch(e: CancellationException) {
                 Transfer.update(TransferState(Phase.ERROR, message="DOWNLOAD CANCELLED. TAP TO RETRY"))
             } catch(e: Exception) {
                 val message = when(e) {
                     is UserFailure -> e.message ?: "DOWNLOAD FAILED. TAP TO RETRY"
-                    is UnknownHostException -> "NO INTERNET OR SERVER UNREACHABLE"
-                    is SocketTimeoutException -> "CONNECTION TIMED OUT. TAP TO RETRY"
                     is SecurityException -> "STORAGE ACCESS DENIED"
                     else -> "DOWNLOAD FAILED. CHECK CONNECTION AND STORAGE"
                 }
                 Transfer.update(TransferState(Phase.ERROR, message=message))
             } finally {
-                file.delete()
+                OnDeviceExtractor.cleanup(this@DownloadService)
                 withContext(NonCancellable + Dispatchers.Main) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
             }
         }
         return START_NOT_STICKY
     }
     override fun onTimeout(startId: Int, fgsType: Int) { job?.cancel(); stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
-    override fun onDestroy() { scope.cancel(); connection?.disconnect(); super.onDestroy() }
+    override fun onDestroy() { OnDeviceExtractor.cancel(); scope.cancel(); super.onDestroy() }
 }
