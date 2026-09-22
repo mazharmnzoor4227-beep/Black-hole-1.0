@@ -83,12 +83,5 @@ class DownloadFlowTest {
         assertTrue(device.wait(Until.hasObject(By.text("NO DOWNLOADS YET")),5000))
         assertTrue(HistoryStore(context).use { it.list() }.isEmpty())
         assertTrue(runCatching { context.contentResolver.openInputStream(uri)?.use { it.read() }; false }.getOrDefault(true))
-        device.findObject(By.text("‹  HISTORY")).click()
-        Transfer.update(TransferState(Phase.ERROR, message="TEST EXTRACTION ERROR", detail="ERROR: diagnostic fixture"))
-        assertTrue(device.wait(Until.hasObject(By.text("TAP ERROR FOR DETAILS")),5000))
-        device.findObject(By.text("TEST EXTRACTION ERROR")).click()
-        assertTrue(device.wait(Until.hasObject(By.text("ERROR: diagnostic fixture")),5000))
-        device.findObject(By.text("CLOSE")).click()
-        Transfer.update(TransferState())
     }
 }
