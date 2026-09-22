@@ -118,6 +118,9 @@ jobs:
             adb pull /sdcard/Android/data/com.blackhole.app/files/evidence evidence/screenshots || true
             adb logcat -d -s AndroidRuntime > evidence/runtime.txt
             python3 -c 's=open("evidence/instrumentation.txt").read(); assert "OK (" in s and "FAILURES" not in s, s'
+            if [ "${{ matrix.api }}" = "36" ]; then timeout 300 adb shell am instrument -w -e class com.blackhole.app.SocialDownloadTest -e liveUrl https://vt.tiktok.com/ZSqKosxuo/ com.blackhole.app.test/androidx.test.runner.AndroidJUnitRunner | tee evidence/live-instrumentation.txt; fi
+            adb pull /sdcard/Android/data/com.blackhole.app/files/evidence evidence/live || true
+            if [ "${{ matrix.api }}" = "36" ]; then python3 -c 's=open("evidence/live-instrumentation.txt").read(); assert "OK (" in s and "FAILURES" not in s, s'; fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
