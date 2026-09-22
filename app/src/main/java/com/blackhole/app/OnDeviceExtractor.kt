@@ -49,7 +49,7 @@ object OnDeviceExtractor {
         val source = runCatching { URL(info.webpageUrl ?: link).host }.getOrDefault("Video")
         val advertisedQuality = when {
             info.width > 0 && info.height > 0 -> "${info.width}×${info.height}"
-            !info.resolution.isNullOrBlank() -> info.resolution
+            !info.resolution.isNullOrBlank() -> info.resolution.orEmpty()
             else -> "BEST AVAILABLE MP4"
         }
         onProgress(0, advertisedQuality)
