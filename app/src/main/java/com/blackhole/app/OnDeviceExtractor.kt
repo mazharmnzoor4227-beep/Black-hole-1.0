@@ -39,6 +39,7 @@ object OnDeviceExtractor {
         try {
             YoutubeDL.init(context.applicationContext)
             FFmpeg.init(context.applicationContext)
+            BundledExtractor.install(context.applicationContext)
         } catch (e: Exception) {
             throw UserFailure("DOWNLOAD ENGINE COULD NOT START")
         }
@@ -121,10 +122,9 @@ object OnDeviceExtractor {
             throw mapFailure(e)
         }
         currentCoroutineContext().ensureActive()
-        val file = context.cacheDir.listFiles().orEmpty()
-            .filter { it.isFile && it.name.startsWith("transfer.") && !it.name.endsWith(".part") && !it.name.endsWith(".ytdl") }
-            .maxByOrNull { it.length() }
-            ?: throw UserFailure("VIDEO DOWNLOAD DID NOT PRODUCE A FILE")
+        // Never publish a leftover audio stream or an incomplete merge as video.
+        val file = File(context.cacheDir, "transfer.mp4")
+        if (!file.isFile) throw UserFailure("VIDEO DOWNLOAD DID NOT PRODUCE A FINAL MP4")
         if (file.length() <= 0L) throw UserFailure("VIDEO DOWNLOAD IS EMPTY")
         if (file.length() > MediaFiles.MAX_BYTES) throw UserFailure("VIDEO EXCEEDS THE 2 GB LIMIT")
         validateCompatibleMp4(file)
@@ -142,22 +142,21 @@ object OnDeviceExtractor {
         .addOption("--format", FORMAT)
         .addOption("--socket-timeout", 20)
         .addOption("--extractor-retries", 2)
+        .apply { if (BuildConfig.DEBUG) addOption("--verbose") }
 
     private fun validateCompatibleMp4(file: File) {
         val extractor = MediaExtractor()
         try {
             extractor.setDataSource(file.absolutePath)
             var hasAvcVideo = false
-            var hasAacAudio = false
             for (index in 0 until extractor.trackCount) {
                 val mime = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty()
                 when {
                     mime.startsWith("video/") -> hasAvcVideo = true
-                    mime.startsWith("audio/") -> hasAacAudio = true
                 }
             }
             if (!hasAvcVideo) throw UserFailure("DOWNLOADED FILE DOES NOT CONTAIN COMPATIBLE VIDEO")
-            if (!hasAacAudio) throw UserFailure("DOWNLOADED FILE DOES NOT CONTAIN AUDIO")
+            // A source video can legitimately be silent.
         } catch (failure: UserFailure) {
             throw failure
         } catch (_: Exception) {

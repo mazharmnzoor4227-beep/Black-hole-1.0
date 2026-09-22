@@ -59,6 +59,13 @@ class DownloadFlowTest {
         assertEquals(100,Transfer.state.value.percent)
         val uri=android.net.Uri.parse(Transfer.state.value.uri)
         context.contentResolver.openInputStream(uri).use { assertNotNull(it); assertTrue(it!!.read() >= 0) }
+        val tracks = android.media.MediaExtractor()
+        try {
+            tracks.setDataSource(context, uri, null)
+            assertTrue("Source audio must survive download and publication", (0 until tracks.trackCount).any {
+                tracks.getTrackFormat(it).getString(android.media.MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
+            })
+        } finally { tracks.release() }
         val rows=HistoryStore(context).use { it.list() }
         assertTrue(rows.isNotEmpty())
         assertTrue(rows.first().bytes > 0)

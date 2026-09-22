@@ -38,12 +38,12 @@ jobs:
       - name: APK metadata and ABI validation
         run: |
           mkdir -p artifacts
-          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BLACK-HOLE-1.1.0-direct.apk
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging artifacts/BLACK-HOLE-1.1.0-direct.apk > artifacts/apk-metadata.txt
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs artifacts/BLACK-HOLE-1.1.0-direct.apk > artifacts/signature.txt
+          cp app/build/outputs/apk/debug/app-debug.apk artifacts/BLACK-HOLE-1.1.2-direct.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging artifacts/BLACK-HOLE-1.1.2-direct.apk > artifacts/apk-metadata.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs artifacts/BLACK-HOLE-1.1.2-direct.apk > artifacts/signature.txt
           python3 - <<'PY'
           import os,zipfile,hashlib,json
-          p='artifacts/BLACK-HOLE-1.1.0-direct.apk'
+          p='artifacts/BLACK-HOLE-1.1.2-direct.apk'
           with zipfile.ZipFile(p) as z:
               names=z.namelist()
               for abi in ('arm64-v8a','armeabi-v7a','x86','x86_64'):
@@ -57,7 +57,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: BLACK-HOLE-1.1.0-direct-APK
+          name: BLACK-HOLE-1.1.2-direct-APK
           path: artifacts/
       - uses: actions/upload-artifact@v4
         with:

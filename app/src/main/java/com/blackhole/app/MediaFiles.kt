@@ -26,14 +26,11 @@ object MediaFiles {
             val duration = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
             extractor.setDataSource(file.absolutePath)
             var hasVideo = false
-            var hasAudio = false
             for (index in 0 until extractor.trackCount) {
                 val mime = extractor.getTrackFormat(index).getString(android.media.MediaFormat.KEY_MIME).orEmpty()
                 if (mime.startsWith("video/")) hasVideo = true
-                if (mime.startsWith("audio/")) hasAudio = true
             }
             if (height <= 0 || width <= 0 || duration <= 0 || !hasVideo) throw UserFailure("THIS FILE IS NOT A PLAYABLE VIDEO")
-            if (!hasAudio) throw UserFailure("DOWNLOADED VIDEO HAS NO AUDIO")
             return "${width}×${height} · MP4"
         } finally { extractor.release(); r.release() }
     }
