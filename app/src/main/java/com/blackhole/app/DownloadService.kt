@@ -6,6 +6,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.text.format.Formatter
+import android.util.Log
 import kotlinx.coroutines.*
 
 class DownloadService : Service() {
@@ -56,7 +57,8 @@ class DownloadService : Service() {
                     is SecurityException -> "STORAGE ACCESS DENIED"
                     else -> "DOWNLOAD FAILED. CHECK CONNECTION AND STORAGE"
                 }
-                Transfer.update(TransferState(Phase.ERROR, message=message, detail=(e as? UserFailure)?.diagnostic.orEmpty()))
+                (e as? UserFailure)?.diagnostic?.takeIf { it.isNotBlank() }?.let { Log.w("BlackHoleDownload", it) }
+                Transfer.update(TransferState(Phase.ERROR, message=message))
             } finally {
                 OnDeviceExtractor.cleanup(this@DownloadService)
                 withContext(NonCancellable + Dispatchers.Main) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
