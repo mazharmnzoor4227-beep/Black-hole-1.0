@@ -56,7 +56,7 @@ class DownloadService : Service() {
                     is SecurityException -> "STORAGE ACCESS DENIED"
                     else -> "DOWNLOAD FAILED. CHECK CONNECTION AND STORAGE"
                 }
-                Transfer.update(TransferState(Phase.ERROR, message=message))
+                Transfer.update(TransferState(Phase.ERROR, message=message, detail=(e as? UserFailure)?.diagnostic.orEmpty()))
             } finally {
                 OnDeviceExtractor.cleanup(this@DownloadService)
                 withContext(NonCancellable + Dispatchers.Main) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }

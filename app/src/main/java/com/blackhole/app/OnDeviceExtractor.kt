@@ -10,6 +10,8 @@ import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
+import org.json.JSONObject
 import java.io.File
 import java.net.URL
 import java.util.concurrent.atomic.AtomicInteger
@@ -40,18 +42,46 @@ object OnDeviceExtractor {
             throw UserFailure("DOWNLOAD ENGINE COULD NOT START")
         }
 
-        val infoRequest = baseRequest(link).addOption("--skip-download")
+        // Parse only the fields we use. Upstream metadata can contain nulls and
+        // new field types that do not fit the library's fixed VideoInfo model.
+        suspend fun analyze(): JSONObject = runInterruptible {
+            val response = YoutubeDL.execute(
+                baseRequest(link).addOption("--skip-download").addOption("--dump-single-json"),
+                PROCESS_ID,
+            )
+            JSONObject(response.out)
+        }
         val info = try {
-            YoutubeDL.getInfo(infoRequest)
+            analyze()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            throw mapFailure(e)
+            currentCoroutineContext().ensureActive()
+            // One bounded recovery attempt, not a loop or an external API fallback.
+            val prefs = context.getSharedPreferences("engine", Context.MODE_PRIVATE)
+            val now = System.currentTimeMillis()
+            if (now - prefs.getLong("lastUpdateAttempt", 0L) < 6 * 60 * 60 * 1000L) {
+                throw mapFailure(e)
+            }
+            prefs.edit().putLong("lastUpdateAttempt", now).apply()
+            Transfer.update(TransferState(Phase.ANALYZING, detail = "UPDATING DOWNLOAD ENGINE"))
+            try {
+                runInterruptible { YoutubeDL.updateYoutubeDL(context.applicationContext) }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                throw mapFailure(e)
+            }
+            currentCoroutineContext().ensureActive()
+            try { analyze() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (retry: Exception) { throw mapFailure(retry) }
         }
         currentCoroutineContext().ensureActive()
-        val title = info.title?.takeIf { it.isNotBlank() } ?: "Video"
-        val source = runCatching { URL(info.webpageUrl ?: link).host }.getOrDefault("Video")
+        val title = info.optString("title").takeIf { it.isNotBlank() && it != "null" } ?: "Video"
+        val source = runCatching { URL(link).host }.getOrDefault("Video")
         val advertisedQuality = when {
-            info.width > 0 && info.height > 0 -> "${info.width}×${info.height}"
-            !info.resolution.isNullOrBlank() -> info.resolution.orEmpty()
+            info.optInt("width") > 0 && info.optInt("height") > 0 -> "${info.optInt("width")}×${info.optInt("height")}"
             else -> "BEST AVAILABLE MP4"
         }
         onProgress(0, advertisedQuality)
@@ -86,6 +116,7 @@ object OnDeviceExtractor {
             Thread.currentThread().interrupt()
             throw kotlinx.coroutines.CancellationException("interrupted")
         } catch (e: Exception) {
+            currentCoroutineContext().ensureActive()
             throw mapFailure(e)
         }
         currentCoroutineContext().ensureActive()
@@ -108,7 +139,8 @@ object OnDeviceExtractor {
     private fun baseRequest(link: String) = YoutubeDLRequest(link)
         .addOption("--no-playlist")
         .addOption("--format", FORMAT)
-        .addOption("--no-warnings")
+        .addOption("--socket-timeout", 20)
+        .addOption("--extractor-retries", 2)
 
     private fun validateCompatibleMp4(file: File) {
         val extractor = MediaExtractor()
@@ -152,6 +184,10 @@ object OnDeviceExtractor {
             error is YoutubeDLException -> "VIDEO COULD NOT BE EXTRACTED. TRY AGAIN"
             else -> "DOWNLOAD FAILED. CHECK CONNECTION AND STORAGE"
         }
-        return UserFailure(message)
+        val diagnostic = generateSequence<Throwable>(error) { it.cause }
+            .joinToString("\n") { it.message.orEmpty() }
+            .replace(Regex("https?://[^\\s]+"), "[link]")
+            .takeLast(1800)
+        return UserFailure(message, diagnostic)
     }
 }

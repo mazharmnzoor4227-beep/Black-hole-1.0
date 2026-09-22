@@ -1,5 +1,21 @@
 # BLACK HOLE
 
+## 1.1.1 extraction recovery
+
+The downloader still runs on the phone: no hosting account, payment card, or API key.
+Metadata now uses tolerant JSON parsing instead of the library's fixed metadata model.
+On analysis failure the app attempts an official stable yt-dlp update and retries once;
+update attempts are limited to once per six hours. An update requires internet access
+to GitHub, but a successful download does not wait for an update check.
+Analysis now has socket/retry limits and a cancellable process ID.
+Tap an extraction error to inspect/copy its diagnostic text (URLs are redacted).
+Review diagnostics before sharing them, since they can still include video identifiers.
+
+Validation for this patch: local backend policy tests and whitespace checks passed.
+Local Android compilation was blocked by unavailable Gradle distribution network access.
+Use the branch's GitHub Actions compile/lint and device tests before installing.
+The direct-MP4 fixture does not establish support for a social-platform link.
+
 BLACK HOLE is a minimal Android 9+ public-video downloader. Version 1.1.0 runs yt-dlp and FFmpeg on the phone, so the app does not need Render, a paid extraction API, `backend-url.txt`, or `BLACK_HOLE_API_URL`. The existing `backend/` remains in the repository for history and optional experimentation; the Android download path does not call it.
 
 ## What the app does

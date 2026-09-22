@@ -73,6 +73,17 @@ class MainActivity : Activity() {
         root.addView(hole, FrameLayout.LayoutParams(side,side,Gravity.CENTER))
         val stack = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER }
         status=label(); detail=label(size=10f)
+        status.setOnClickListener {
+            val state = Transfer.state.value
+            if (state.phase == Phase.ERROR && state.detail.isNotBlank()) {
+                AlertDialog.Builder(this).setTitle("Download details")
+                    .setMessage(state.detail)
+                    .setPositiveButton("Copy") { _, _ ->
+                        getSystemService(ClipboardManager::class.java)
+                            .setPrimaryClip(ClipData.newPlainText("Download error", state.detail))
+                    }.setNegativeButton("Close", null).show()
+            }
+        }
         progress=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply {
             max=100; isIndeterminate=false; progressTintList=android.content.res.ColorStateList.valueOf(Color.WHITE)
             progressBackgroundTintList=android.content.res.ColorStateList.valueOf(Color.rgb(35,35,35))
@@ -93,6 +104,7 @@ class MainActivity : Activity() {
         hole.animateHole(s.busy)
         progress.visibility=if(s.phase in listOf(Phase.DOWNLOADING,Phase.SAVING,Phase.COMPLETE,Phase.ANALYZING)) View.VISIBLE else View.INVISIBLE
         progress.progress=s.percent ?: 0
+        progress.isIndeterminate = s.phase == Phase.ANALYZING
         progress.contentDescription=if(s.percent == null) "Size unknown" else "${s.percent} percent"
         status.text=when(s.phase) {
             Phase.IDLE -> ""
@@ -102,7 +114,11 @@ class MainActivity : Activity() {
             Phase.COMPLETE -> "DOWNLOAD COMPLETE"
             Phase.ERROR -> s.message
         }
-        detail.text=if(s.phase == Phase.COMPLETE) "100% · SAVED TO DOWNLOADS\n${s.detail}" else s.detail
+        detail.text=when {
+            s.phase == Phase.ERROR -> if(s.detail.isNotBlank()) "TAP ERROR FOR DETAILS" else ""
+            s.phase == Phase.COMPLETE -> "100% · SAVED TO DOWNLOADS\n${s.detail}"
+            else -> s.detail
+        }
     }
     private fun startDownload() {
         if(Transfer.state.value.busy) return
