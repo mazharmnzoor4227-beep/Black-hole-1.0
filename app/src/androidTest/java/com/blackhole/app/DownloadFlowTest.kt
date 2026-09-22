@@ -79,7 +79,7 @@ class DownloadFlowTest {
         assertTrue(device.wait(Until.hasObject(By.text("Delete")),5000))
         device.findObject(By.text("Delete")).click()
         assertTrue(device.wait(Until.hasObject(By.text("Delete this downloaded video?")),5000))
-        device.findObject(By.text("Delete")).click()
+        device.findObject(By.text("DELETE")).click()
         assertTrue(device.wait(Until.hasObject(By.text("NO DOWNLOADS YET")),5000))
         assertTrue(HistoryStore(context).use { it.list() }.isEmpty())
         assertTrue(runCatching { context.contentResolver.openInputStream(uri)?.use { it.read() }; false }.getOrDefault(true))
