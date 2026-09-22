@@ -1,6 +1,8 @@
 package com.blackhole.app
 
 import android.content.Context
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.os.SystemClock
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
@@ -17,7 +19,7 @@ data class ExtractedVideo(val file: File, val metadata: Video)
 object OnDeviceExtractor {
     const val PROCESS_ID = "black-hole-download"
     private const val MIN_WORKING_SPACE = 300L * 1024L * 1024L
-    private const val FORMAT = "bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[acodec^=mp4a][ext=m4a]/best[vcodec^=avc1][acodec^=mp4a][ext=mp4]"
+    private const val FORMAT = "bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[acodec^=mp4a][ext=m4a]/best[vcodec^=avc1][acodec^=mp4a][ext=mp4]/best[ext=mp4]/best"
 
     fun cancel() {
         YoutubeDL.destroyProcessById(PROCESS_ID)
@@ -93,6 +95,7 @@ object OnDeviceExtractor {
             ?: throw UserFailure("VIDEO DOWNLOAD DID NOT PRODUCE A FILE")
         if (file.length() <= 0L) throw UserFailure("VIDEO DOWNLOAD IS EMPTY")
         if (file.length() > MediaFiles.MAX_BYTES) throw UserFailure("VIDEO EXCEEDS THE 2 GB LIMIT")
+        validateCompatibleMp4(file)
         return ExtractedVideo(file, Video(link, title, source, advertisedQuality))
     }
 
@@ -106,6 +109,32 @@ object OnDeviceExtractor {
         .addOption("--no-playlist")
         .addOption("--format", FORMAT)
         .addOption("--no-warnings")
+
+    private fun validateCompatibleMp4(file: File) {
+        val extractor = MediaExtractor()
+        try {
+            extractor.setDataSource(file.absolutePath)
+            var hasAvcVideo = false
+            var hasAacAudio = false
+            for (index in 0 until extractor.trackCount) {
+                val mime = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty()
+                when {
+                    mime == "video/avc" -> hasAvcVideo = true
+                    mime.startsWith("video/") -> throw UserFailure("VIDEO CODEC IS NOT COMPATIBLE WITH THIS DEVICE")
+                    mime == "audio/mp4a-latm" -> hasAacAudio = true
+                    mime.startsWith("audio/") -> throw UserFailure("AUDIO CODEC IS NOT COMPATIBLE WITH THIS DEVICE")
+                }
+            }
+            if (!hasAvcVideo) throw UserFailure("DOWNLOADED FILE DOES NOT CONTAIN COMPATIBLE VIDEO")
+            if (!hasAacAudio) throw UserFailure("DOWNLOADED FILE DOES NOT CONTAIN AUDIO")
+        } catch (failure: UserFailure) {
+            throw failure
+        } catch (_: Exception) {
+            throw UserFailure("DOWNLOADED VIDEO COULD NOT BE VERIFIED")
+        } finally {
+            extractor.release()
+        }
+    }
 
     private fun mapFailure(error: Exception): UserFailure {
         val raw = generateSequence<Throwable>(error) { it.cause }.joinToString(" ") { it.message.orEmpty() }.lowercase()
