@@ -151,10 +151,8 @@ object OnDeviceExtractor {
             for (index in 0 until extractor.trackCount) {
                 val mime = extractor.getTrackFormat(index).getString(MediaFormat.KEY_MIME).orEmpty()
                 when {
-                    mime == "video/avc" -> hasAvcVideo = true
-                    mime.startsWith("video/") -> throw UserFailure("VIDEO CODEC IS NOT COMPATIBLE WITH THIS DEVICE")
-                    mime == "audio/mp4a-latm" -> hasAacAudio = true
-                    mime.startsWith("audio/") -> throw UserFailure("AUDIO CODEC IS NOT COMPATIBLE WITH THIS DEVICE")
+                    mime.startsWith("video/") -> hasAvcVideo = true
+                    mime.startsWith("audio/") -> hasAacAudio = true
                 }
             }
             if (!hasAvcVideo) throw UserFailure("DOWNLOADED FILE DOES NOT CONTAIN COMPATIBLE VIDEO")
