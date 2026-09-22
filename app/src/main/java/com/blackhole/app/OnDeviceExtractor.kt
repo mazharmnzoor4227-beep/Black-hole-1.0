@@ -21,7 +21,8 @@ data class ExtractedVideo(val file: File, val metadata: Video)
 object OnDeviceExtractor {
     const val PROCESS_ID = "black-hole-download"
     private const val MIN_WORKING_SPACE = 300L * 1024L * 1024L
-    private const val FORMAT = "bestvideo[vcodec^=avc1][ext=mp4]+bestaudio[acodec^=mp4a][ext=m4a]/best[vcodec^=avc1][acodec^=mp4a][ext=mp4]/best[ext=mp4]/best"
+    private const val FORMAT = "bestvideo+bestaudio/best"
+
 
     fun cancel() {
         YoutubeDL.destroyProcessById(PROCESS_ID)
