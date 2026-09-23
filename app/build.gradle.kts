@@ -36,6 +36,10 @@ android {
         buildConfigField("String", "EXTRACTOR_VERSION", "\"$extractorVersion\"")
         buildConfigField("String", "EXTRACTOR_SHA256", "\"$extractorSha256\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        providers.gradleProperty("targetAbi").orNull?.let { abi ->
+            require(abi in setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64"))
+            ndk { abiFilters += abi }
+        }
     }
     buildFeatures { buildConfig = true }
     sourceSets.getByName("main").assets.srcDir(extractorAssets)

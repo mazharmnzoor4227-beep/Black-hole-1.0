@@ -1,0 +1,50 @@
+name: Smaller phone APK
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/phone-apk.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  arm64:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: black-hole-debug-signing-v1
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - run: gradle --no-daemon :app:assembleDebug -PtargetAbi=arm64-v8a
+      - name: Verify phone package
+        run: |
+          mkdir phone
+          cp app/build/outputs/apk/debug/app-debug.apk phone/BLACK-HOLE-1.1.2-PHONE.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs phone/BLACK-HOLE-1.1.2-PHONE.apk
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging phone/BLACK-HOLE-1.1.2-PHONE.apk
+          python3 - <<'PY'
+          import zipfile,os,hashlib
+          p='phone/BLACK-HOLE-1.1.2-PHONE.apk'
+          with zipfile.ZipFile(p) as z:
+              assert z.testzip() is None
+              assert {n.split('/')[1] for n in z.namelist() if n.startswith('lib/')} == {'arm64-v8a'}
+              for lib in ('libpython.so','libpython.zip.so','libffmpeg.so'):
+                  assert 'lib/arm64-v8a/'+lib in z.namelist()
+          assert os.path.getsize(p)<150_000_000
+          print('APK bytes:',os.path.getsize(p))
+          print('SHA256:',hashlib.sha256(open(p,'rb').read()).hexdigest())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BLACK-HOLE-1.1.2-PHONE
+          path: phone/*.apk
